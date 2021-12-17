@@ -97,12 +97,12 @@ if __name__ == '__main__':
 
                             # To recursively include all levels of keys
                             'source': '''
-                                void recurse(def x, String base) {
+                                List recurse(def x, String base) {
                                     List rv = new ArrayList();
                                     for (String k: x.keySet()) {
                                         rv.add(base + k);
                                         if (x[k] instanceof Map) {
-                                            for (String l: recurse(x[k], k + '.')) {
+                                            for (String l: recurse(x[k], base + k + '.')) {
                                                 rv.add(l);
                                             }
                                         }
