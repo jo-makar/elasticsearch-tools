@@ -76,7 +76,42 @@ if __name__ == '__main__':
                     'terms': {
                         'size': initial_size,
                         'script': {
-                            'source': 'params._source.keySet()'
+                              'lang': 'painless',
+
+                            # To include only the root-level keys
+                            #'source': 'params._source.keySet()'
+
+                            # To include the first two levels of keys
+                            #'source': '''
+                            #    List rv = new ArrayList();
+                            #    for (String k: params._source.keySet()) {
+                            #        rv.add(k);
+                            #        if (params._source[k] instanceof Map) {
+                            #            for (String l: params._source[k].keySet()) {
+                            #                rv.add(k + '.' + l);
+                            #            }
+                            #        }
+                            #    }
+                            #    rv
+                            #'''
+
+                            # To recursively include all levels of keys
+                            'source': '''
+                                void recurse(def x, String base) {
+                                    List rv = new ArrayList();
+                                    for (String k: x.keySet()) {
+                                        rv.add(base + k);
+                                        if (x[k] instanceof Map) {
+                                            for (String l: recurse(x[k], k + '.')) {
+                                                rv.add(l);
+                                            }
+                                        }
+                                    }
+                                    return rv;
+                                }
+
+                                recurse(params._source, '');
+                            '''
                         }
                     }
                 }
@@ -110,4 +145,4 @@ if __name__ == '__main__':
 
     print('', flush=True)
     for field in sorted(all_fields):
-        print(repr(field))
+        print(json.dumps(field))

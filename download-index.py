@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--creds', '-c', type=str)
     parser.add_argument('--compress', '-x', action='store_true')
     parser.add_argument('--query', '-q', type=str)
+    parser.add_argument('--extra', '-e', type=str)
 
     parser.add_argument('index', type=str)
     parser.add_argument('after', type=int, nargs='?')
@@ -59,6 +60,8 @@ if __name__ == '__main__':
 
     if args.query:
         body['query'] = json.loads(args.query)
+    if args.extra:
+        body.update(json.loads(args.extra))
 
     if args.after:
         body['search_after'] = [args.after]
