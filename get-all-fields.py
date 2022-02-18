@@ -59,6 +59,8 @@ if __name__ == '__main__':
 
     all_fields = set()
 
+    # TODO Consider dynamically scaling the intervals and/or using multiple threads
+
     cur_timestamp = beg_timestamp
     while cur_timestamp <= end_timestamp:
         body = {

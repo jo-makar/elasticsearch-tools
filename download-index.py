@@ -3,14 +3,16 @@
 # Each file is named as timestamp (incl. usec) of the first record
 #
 # To continue an interrupted download:
-# Add an argument timestamp argument of the last (incomplete) file minus one usec
-# Eg if the last file was 1629936319214.json use 1629936319213
+# Add an argument @timestamp argument of the last (incomplete) file minus one usec
+# Eg if the last record's @timestamp was 1629936319214 use 1629936319213
+# Easily found with: expr $(tail -1 $(ls *.json | tail -1) | jq -M '.sort[0]') - 1
 
 import requests
 
 import argparse
 import json
 import os
+import time
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -22,8 +24,12 @@ if __name__ == '__main__':
     parser.add_argument('--query', '-q', type=str)
     parser.add_argument('--extra', '-e', type=str)
 
+    # Ignore shard failures, implies a willingness to accept only the available data.
+    # Otherwise retry on shard failures and abort if there are too many consecutive failures.
+    parser.add_argument('--ignore', '-i', action='store_true')
+
     parser.add_argument('index', type=str)
-    parser.add_argument('after', type=int, nargs='?')
+    parser.add_argument('after', nargs='?')
 
     args = parser.parse_args()
 
@@ -70,11 +76,25 @@ if __name__ == '__main__':
     output_fileobj = None
     output_count = 0
 
+    failures = 0 # Consecutive failures
+
     while True:
         resp = requests.get(f'{base_url}/_search', json=body, **requests_kwargs)
         resp.raise_for_status()
         resp_json = resp.json()
-        print('.', end='', flush=True)
+
+        if args.ignore:
+            print('p' if resp_json['_shards']['failed'] > 0 else '.', end='', flush=True)
+        else:
+            if resp_json['_shards']['failed'] > 0:
+                print('f', end='', flush=True)
+                failures += 1
+                assert failures < 5
+                time.sleep(30)
+                continue
+            else:
+                print('.', end='', flush=True)
+                failures = 0
 
         for hit in resp_json['hits']['hits']:
             if output_fileobj is None:
@@ -99,9 +119,20 @@ if __name__ == '__main__':
                 output_filename = None
                 output_count = 0
 
-        if len(resp_json['hits']['hits']) < request_size:
-            print('', flush=True)
-            break
+        if args.ignore:
+            # Cannot effectively known when to stop based on available records and shard failures.
+            # Assume if there are no records at all with shard failures that it's time to stop.
+            if resp_json['_shards']['failed'] > 0:
+                if len(resp_json['hits']['hits']) == 0:
+                    print('0', flush=True)
+            else:
+                if len(resp_json['hits']['hits']) < request_size:
+                    print('', flush=True)
+                    break
+        else:
+            if len(resp_json['hits']['hits']) < request_size:
+                print('', flush=True)
+                break
 
         body['pit']['id'] = resp_json['pit_id']
         body['search_after'] = resp_json['hits']['hits'][-1]['sort']
